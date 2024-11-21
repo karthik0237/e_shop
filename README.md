@@ -168,7 +168,8 @@ DATABASES = {
 * Update git: in terminal, type 
 git init 
 git status 
-git branch 
+git branch init-setup
+git branch
 
 It shows two branches
 *main 
@@ -189,3 +190,89 @@ To https://github.com/karthik0237/eshop.git
 (myenv) PS E:\djangop\eshop-django\eshop> python manage.py startapp product 
 open settings.py and add:
  LOCAL_APPS= ['product']
+
+
+
+
+
+
+
+
+
+ SECTION 2 : 
+ 
+ 1. creating product and base models:
+ 
+* import inbuilt django user model: 
+
+from django.contrib.auth.model
+from django.db import models 
+from django.contrib.auth.models import User
+
+
+
+class Categories(models.TextChoices): 
+    ELECTRONICS = 'electronics' 
+    LAPTOPS = 'Laptops' 
+    ARTS = 'Arts' 
+    FOOD = 'Food' 
+    HOME = 'Home' 
+    KITCHEN = 'Kitchen'
+
+
+
+class BaseModel(models.Model): 
+    created_at = models.DateTimeField(auto_now_add= True, blank=True) 
+    updated_at = models.DateTimeField(auto_now = True) 
+    is_active = models.BooleanField(default = True)
+
+    class Meta:
+        abstract = True
+
+
+class Product(BaseModel): 
+
+    name = models.CharField(max_length = 256, default = '', blank = False) # always use blank instead of null for charfield 
+    description = models.TextField(max_length = 1000, default = '',blank = False) 
+    price = models.DecimalField(max_digits = 7, decimal_places = 2, default = '', blank = False) 
+    brand = models.CharField(max_length = 256, blank = True, default = 'generic') 
+    category = models.CharField(max_length = 30, choices = Categories.choices) 
+    ratings = models.DecimalField(max_digits = 3, decimal_places = 2, default = 0) 
+    stock = models.IntegerField(default = 0) 
+    user = models.ForeignKey(User, on_delete = models.SET_NULL, null = True) #this field becomes null if user model is deleted.
+
+
+
+
+* Apply migrations: 
+
+(myenv) PS E:\djangop\eshop-django\eshop> python manage.py makemigrations 
+(myenv) PS E:\djangop\eshop-django\eshop> python manage.py migrate
+
+
+* verify tables in pgadmin4 : open pgadmin4> servers>local> rightclick and connect to local
+clickon local> eshop-django> schemas> tables. you can see all the tables created by running migrations in django.
+
+
+* create superuser: 
+
+(myenv) PS E:\djangop\eshop-django\eshop> python manage.py createsuperuser 
+username:karth 
+password:root123?
+
+(myenv) PS E:\djangop\eshop-django\eshop> python manage.py runserver
+
+goto browser and type http://127.0.0.1:8000/admin for admin page. 
+
+* login with username and password. In admin site users and groups are visible but not product model. To make product model visible, goto admin.py file in product app folder and add below code:
+
+from .models import Product
+
+admin.site.register(Product)
+
+In admin site, open Product model and add a product, after saving its hading is shown as product object(1). To change this name, goto models.py , below inside Product class add a method:
+
+    def str(self): 
+        return self.name
+
+

@@ -29,7 +29,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG')
+DEBUG = bool(os.getenv('DEBUG'))     #returns False only if debug = ''(emptystring) in .env file
 
 ALLOWED_HOSTS = []
 
@@ -47,14 +47,17 @@ DJANGO_APPS = [
 
 
 THIRDPARTY_APPS = [ 
+
     'rest_framework',
 ]
 
 LOCAL_APPS = [
 
+'product',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRDPARTY_APPS + LOCAL_APPS
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
