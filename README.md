@@ -436,7 +436,49 @@ If u want to know total count of poducts and resperpage, write below code in get
 
 * open git, stage and commit and push it to github
 
-SECTION 4: 
+SECTION 4: Error and Exception Handling
+
+1. Handle 404 and 500 errors:
+
+In eshop project main folder create a folder utils. In utils folder, create error_views.py file and write following code:
+
+* from django.http import JsonResponse
+
+
+def handler404(request, exception):
+
+    message = ("Route not found.")
+    response = JsonResponse(data= {"error" : message})
+    response.status_code = 404
+    return response
+
+def handler500(request):
+    #internal server error
+    message = ('Internal server error.')
+    response = JsonResponse(data = {'error' : message})
+    response.status_code = 500
+    return response
+
+open eshop.urls.py and add below code:
+
+handler404 = 'utils.error_views.handler404'
+handler500 = 'utils.error_views.handler500'
+
+to test above code, in settings.py make DEBUG = False, since this works only in production
+runserver and test in postman
+
+2. Custom Exception handling code:
+
+In utils folder create a new file, custom_exception handler.py and define a fuction with name
+custom_exception handler() and write all code.
+
+ make DEBUG = True, runserver and test in postman.
+
+ create a new branch and post it to github.
+
+
+
+
 
 
     
