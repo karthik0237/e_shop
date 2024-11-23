@@ -2,7 +2,7 @@ eshop project documentation:
 
 github link: https://github.com/ghulamabbas2/eshop
 
-required softwares: python 3 vscode( install python related extensions) postgresql(pg admin) git postman
+required softwares: python 3 ,vscode( install python related extensions), postgresql(pg admin) git, postman,aws,stripe
 
 
 
@@ -116,11 +116,9 @@ dotenv.load_dotenv()
 
 copy and paste secretkey, debug strings in .env file, .env file: 
 
-* SECRET_KEY = r'django-insecure-u@yp7a+iexq(-%xc7co66zy68wws6cohlevt_g^l!1zo%ual8&'
+* SECRET_KEY = 'django-insecure-u@yp7a+iexq(-%xc7co66zy68wws6cohlevt_g^l!1zo%ual8&'
  DEBUG = True
 
-(note: r'' indicates rawstring which means sequences like \n,\t,%s etc are ignored )
-and call them in settings.py like below:
 
 SECRET_KEY = os.getenv('SECRET_KEY') DEBUG = os.getenv('DEBUG')
 
@@ -254,7 +252,7 @@ class Product(BaseModel):
 clickon local> eshop-django> schemas> tables. you can see all the tables created by running migrations in django.
 
 
-* create superuser: 
+2. Create superuser and admin site: 
 
 (myenv) PS E:\djangop\eshop-django\eshop> python manage.py createsuperuser 
 username:karth 
@@ -274,5 +272,179 @@ In admin site, open Product model and add a product, after saving its hading is 
 
     def str(self): 
         return self.name
+
+3. Add serializers, views and url endpoints:
+
+create serializers.py file in product app folder and import modelserialzer and from .models import Product  model, create base and product serializers.
+Inside class meta add model mane, list of model fields and readonly fields.
+
+In product/views.py, import api_view from rest_framework.decorators and also Response, import models and serializers also.
+
+* create api end points using functions:
+
+create get_products fucntion.
+* @api_view(['GET'])
+def get_products(request):
+
+    # Create a variable, 
+    products = Product.objects.all()       # returns all objects of product model in the form of queryset
+    serializer = Productserializer(products, many = True). #serializing products to convert queryset into json format
+
+    # Return all products as response in json format using
+    retun Response({ 'products' : serializers.data })
+
+create another fucntion to get individual product based on id or primary key. For that define get_product() fucntion with arguments (request, pk). Here pk refers to primarykey/id of a product which is given in url of getrequest.Here we want only single object from queryset. so we import and use get_object_or_404() from django.shortcuts. get_object_or_404 is a convenient shortcut function provided by Django, which is used for getting an object from a database using a model’s manager and raising an Http404 exception if the object is not found. It’s commonly used in views to get a single object based on a query and handle the case where the object doesn’t exist.
+
+
+@api_view(['GET'])
+def get_product(request, pk):
+
+    product = get_object_or_404(Product, id = pk)  #returns only single object or 404 object not found error
+    serializer = ProductSerializer(product, many = False)
+
+    return Response({'product' : serializer.data})
+
+
+* add urls:
+In product folder create urls.py file and add code:
+from . import views
+
+urlpatterns = [
+
+    path('products/', views.get_products, name = 'products'),
+    path('products/<str:pk>', views.get_product, name =' get_product_details' ),
+]
+
+
+In eshop/urls.py, 
+import include
+urlpatterns =[path('',include('product.urls'))]
+
+
+4. Postman API:
+
+install postman, and open it, runserver copy urllink and paste it in url bar in postman app.
+create a collection and name it as eshop-django, instead of typing https://127.0.0.1:8000 every time use save it as environment variable. create an environment variable with name 'DOMAIN' and add https://127.0.0.1:8000 and save it.
+
+we can use {{DOMAIN}}/products instead of https://127.0.0.1:8000/products as a shortcut.
+
+save 'GET' method urls in in eshop-django collection.
+
+
+
+
+
+
+
+
+SECTION 3 : Filters, Search and Pagination:
+
+1. Apply Filter for model fields:
+
+Install django-filter from pip, in settings.py add 'django_filters' in installed apps
+create a new file filters.py in the product app folder.
+open it and 
+
+ import rest_framework as filters 
+
+ * create a class with name ProductFilter which inherits filters.FilterSet
+ create meta class and add fields:
+
+class ProdcutFilter(filters.FilterSet):
+
+ class Meta:
+    model = Product
+    fields = ('category','brand')
+
+ save it and then open views.py file:
+
+ import Productfilter from filters.py file, in get_products function add lines:
+* 
+  filterset = ProductsFilter(request.GET, queryset = Product.objects.all().order_by('id'))
+  serializer = ProductSerializer(filterset.qs, many = True)
+
+  save and runserver, open postman and send get request for {{DOMAIN}}/products. In params section, add key-value as category, electronics and send it. You will see all products with electronics category only.
+
+
+
+2. Search Product Name using keyword, price:
+
+open filters.py inside ProductFilter class:
+
+create fields :
+
+keyword = filters.CharFilter(field_name = 'name', lookup_expr = 'icontains')
+min_price = filters.NumberFilter(field_name = 'price' or 0, lookup_expr = 'gte')
+max_price = filters.NumberFilter(field_name = 'price' or 1000000, lookup_expr = 'lte')
+
+keyword(for name search). field_name refers to model field "name". It is taken as keyword and icontains reads each alphabet and searches in quesryset.
+min_price(greater than or equal to this amount or zero )
+max_price(less than or equal to this amount or 1000000 )
+
+In meta class add above fields:
+fields = ('category', 'brand', 'keyword', 'min_price', 'max_price')
+
+open postman and runserver, in params add above fields and test results.
+
+
+3. Pagination:
+
+open views.py, and add below lines:
+* 
+from rest_framework import pagination
+
+@api_view(['GET')])
+def get_products(request):
+
+    filterset = ProductsFilter(request.GET, queryset = Product.objects.all().order_by('id'))
+
+    #serializer = ProductSerializer(products, many = True)
+    resPerPage = 1             #results perpage
+    paginator = pagination.PageNumberPagination()
+    paginator.page_size = resPerPage
+
+    queryset = paginator.paginate_queryset(filterset.qs, request)
+
+    serializer = ProductSerializer(queryset, many = True) #serializing products to convert queryset into json format
+
+    return Response({'products': serializer.data}) 
+
+
+runserver and open postman, send get request for /products
+you will see only 2 results as we gave resperpage =2
+to view secong page, in param add key = page, value= 2, it will show next page result.
+
+
+If u want to know total count of poducts and resperpage, write below code in get_products:
+
+* filterset = ProductsFilter(request.GET, queryset = Product.objects.all().order_by('id'))
+
+    count = filterset.qs.count
+    resPerPage = 2
+    paginator = pagination.PageNumberPagination()
+    paginator.page_size = resPerPage
+
+    queryset = paginator.paginate_queryset(filterset.qs, request)
+
+    serializer = ProductSerializer(queryset, many = True) #serializing products to convert queryset into json format
+
+    return Response({
+        'count': count,
+        'resperpage': resPerPage,
+        
+        'products': serializer.data}) 
+
+* open git, stage and commit and push it to github
+
+SECTION 4: 
+
+
+    
+
+
+
+
+
+
 
 
