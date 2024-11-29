@@ -286,11 +286,11 @@ create get_products fucntion.
 * @api_view(['GET'])
 def get_products(request):
 
-    # Create a variable, 
+    * Create a variable, 
     products = Product.objects.all()       # returns all objects of product model in the form of queryset
     serializer = Productserializer(products, many = True). #serializing products to convert queryset into json format
 
-    # Return all products as response in json format using
+    * Return all products as response in json format using
     retun Response({ 'products' : serializers.data })
 
 create another fucntion to get individual product based on id or primary key. For that define get_product() fucntion with arguments (request, pk). Here pk refers to primarykey/id of a product which is given in url of getrequest.Here we want only single object from queryset. so we import and use get_object_or_404() from django.shortcuts. get_object_or_404 is a convenient shortcut function provided by Django, which is used for getting an object from a database using a model’s manager and raising an Http404 exception if the object is not found. It’s commonly used in views to get a single object based on a query and handle the case where the object doesn’t exist.
@@ -436,6 +436,11 @@ If u want to know total count of poducts and resperpage, write below code in get
 
 * open git, stage and commit and push it to github
 
+
+
+
+
+
 SECTION 4: Error and Exception Handling
 
 1. Handle 404 and 500 errors:
@@ -480,13 +485,215 @@ custom_exception handler() and write all code.
 
 
 
+SECTION 5: AWS account s3 bucket configutation and Upload Images:
 
-    
-
-
-
+create aws account using signup procedure.
 
 
+1. create s3 bucket:
 
+open aws home in search bar , type s3 , click on s3,
+
+In s3 page, click on create bucket, give a unique name(eshop-django-udemy), uncheck block public access as this bucket is
+open to public.
+
+Bucket is created. Now click on that bucket, goto permissions and uncheck block public access and confirm and save.
+
+In permissions tab, click on edit bucket policy, download policy.json file from udemy course, copy that code and paste it in 
+bucket policy. replace your bucket name in resource value and save it.
+
+
+
+
+
+2. User creation:
+
+in search bar type IAM, click on IAM, create user, give a username(karthikkollurudev), click on next,
+in permissions, select option "Attach policies directly" , In permissio policies, search 'amazons3fullaccess' select it 
+and click next, and create user.
+
+click on that username, in security credentials tab, click on create access key, scroll down and click 'other' and clickon
+create. copy both access key and security key and keep it in a safe place.
+
+user: karthikkollurudev
+
+access key aws : AKIAYQYUBFGEZBQYVAFL
+secret key aws : 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
+
+
+
+
+3. aws configuration in django:
+
+pip install django-storages
+
+Install boto3  package in django.pip install boto3
+
+pip list > requirements.txt
+
+goto settings.py and add line:
+add 'storages' in Installed apps list.
+
+DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+
+for django version > 4.2: 
+STORAGES = {
+
+    # Media file (image) management  
+    "default": {
+        "BACKEND": "storages.backends.s3boto3.S3StaticStorage",
+    },
+   
+    # CSS and JS file management
+    "staticfiles": {
+        "BACKEND": "storages.backends.s3boto3.S3StaticStorage",
+    },
+}
+
+AWS_ACCESS_KEY_ID = ''(eshop-django-udemy)
+AWS_SECRET_ACCESS_KEY =''
+AWS_STORAGE_BUCKET_NAME = ''
+AWS_S3_SIGNATURE_VERSION = s3v4
+
+AWS_S3_REGION_NAME = us-east-1
+AWS_S3_FILE_OVERWRITE = False
+AWS_DEFAULT_ACL = none
+AWS_S3_VERIFY = True
+
+add secret and access keys details in .env file
+
+
+
+4. Creating images model and upload images using POST request:
+
+
+im models.py add code:
+* 
+class ProductImages(BaseModel):
+
+    product = models.ForeignKey(Product, on_delete = models.CASCADE, null = True, related_name = "images")
+    images = models.ImageField(upload_to = 'products') # products folder created in awss3bucket
+
+in serializers.py create a class ProductImagesSerializer():
+
+class ProductImagesSerializer(BaseSerializer):
+
+    class Meta:
+        model = ProductImages
+        fields = '__all__'
+
+
+class ProductSerializer(BaseSerializer):
+
+    # inorder to make image visible along with products add images field to product serializer fields.
+    images = ProductImagesSerializer(many = True, read_only = True)
+
+    class Meta:
+        model = Product
+        fields = ('id', 'created_at', 'updated_at', 'name', 'description', 'price', 'brand', 'category',
+                  'ratings', 'stock', 'user', 'images')
+
+In view.py add below code:
+* 
+     data = request.data
+    files = request.FILES.getlist('images') #images is the key-value in formdata which is a model field
+    print("data: ",data)
+    print("files: ",files)
+    # saving images into database
+    images = []
+    for f in files:
+        image = ProductImages.objects.create(product = Product(data['product']), image = f)  
+        images.append(image)
+
+    serializer = ProductImagesSerializer(images, many = True) #retrieving images from database
+
+    return Response({"images": serializer.data})
+
+In urls.py add path:
+
+path('product/upload_images', views.upload_product_images, name = "upload_product_images"),
+
+We have created model so run migrations. We are using Imagefield so we should install Pillow package:
+
+(myenv) PS E:\djangop\eshop-django\eshop>pip install Pillow
+(myenv) PS E:\djangop\eshop-django\eshop>pip list > requirements.txt
+
+open postman and runserver,
+in body tab, clickon form-data, key-value pairs are, product:1, images:upload file from your pc, send url as POST request. you will get {"images": } details of uploaded image.
+Note: files should be uploaded using forms only.
+
+Open pgadmin4 > product_productimages and also s3aws bucket and check for images data.
+
+5. Creating view function for product creation using POST method :
+
+@api_view(['POST'])
+def new_product(request):
+
+def new_product(request):
+
+    data = request.data
+    serializer = ProductSerializer(data = new_product) 
+#first serialize data and check whether valid or not, then omly create new object
+
+    if serializer.is_valid():
+
+        new_product = Product.objects.create(**data)  # multiple arguments(kwargs) i.e,we get all variables present in data.
+        res = ProductSerializer(new_product, many = False)
+        return Response({"new_product": res.data})
+    else:
+        return(serializer.errors)
+
+
+add urlpath:
+ path('products/new_product/', views.new_product, name = 'new_product'),
+
+
+ 6. Creating Update and Delete view fucntions for products:
+
+ for updationg we use  PUT for entire object modifications, PATCH for only few fields modification
+  @api_view(["PUT"])
+  def update_product(request,pk):
+
+    product = Product.get_object_or_404(id = pk)
+    product.field_name = request.data['fieldname']
+    '
+    '
+    '
+    product.save()
+    serializer = ProductSerializer(product, many = False)
+    return Response({'product': serializer.data})
+
+urlpatterns=[path('products/<str:pk>/update', views.update_product, name='update_product')]
+
+for deleting product:
+  @api_view(["DELETE"])
+  def delete_product(request,pk):
+
+    product = Product.get_object_or_404(id = pk)
+    product.delete()
+    return Resposnse("details":"deleted", status=status.200OK)
+urlpatterns=[path('products/<str:pk>/delete', views.delete_product, name='update_product')]
+
+
+7. Deleting images of product with signals:
+
+in views.py, in delete_product():
+
+#delete images along with product
+    args = {"product": pk} #product field in database contains id
+    images = ProductImages.objects.filter(**args)#get images with product Id
+    for i in images:
+        i.delete()
+
+open models.py, cretae a fucntion:
+
+
+def auto_delete_file_on_delete(sender, instance, **kwargs):
+
+    @receiver(post_delete, sender = ProductImages)
+def auto_delete_file_on_delete(sender, instance, **kwargs):
+
+    if instance.images:     #images field verify
+        instance.images.delete(save = False)
 
 

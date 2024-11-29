@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.dispatch import receiver
+from django.db.models.signals import post_delete
 
 
 # Create your models here.
@@ -32,7 +34,23 @@ class Product(BaseModel):
     category = models.CharField(max_length = 30, choices = Categories.choices)
     ratings = models.DecimalField(max_digits = 3, decimal_places = 2, default = 0)
     stock = models.IntegerField(default = 0)
-    user = models.ForeignKey(User, on_delete = models.SET_NULL, null = True)
+    user = models.ForeignKey(User, on_delete = models.SET_NULL, null = True) 
 
     def __str__(self):
         return self.name
+    
+
+
+
+class ProductImages(BaseModel):
+
+    product = models.ForeignKey(Product, on_delete = models.CASCADE, null = True, related_name = "images")
+    images = models.ImageField(upload_to = "products") # 'products' folder created in awss3bucket
+
+
+# implementing signals- delete images automatically when product is deleted
+@receiver(post_delete, sender = ProductImages)  #getting signal from ProductImages in delete_product in views.py
+def auto_delete_file_on_delete(sender, instance, **kwargs):
+
+    if instance.images:     #images field verify
+        instance.images.delete(save = False)
