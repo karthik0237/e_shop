@@ -485,7 +485,7 @@ custom_exception handler() and write all code.
 
 
 
-SECTION 5: AWS account s3 bucket configutation and Upload Images:
+SECTION 5: AWS account s3 bucket configutation, Images model, Manage Product:
 
 create aws account using signup procedure.
 
@@ -509,7 +509,7 @@ bucket policy. replace your bucket name in resource value and save it.
 2. User creation:
 
 in search bar type IAM, click on IAM, create user, give a username(karthikkollurudev), click on next,
-in permissions, select option "Attach policies directly" , In permissio policies, search 'amazons3fullaccess' select it 
+in permissions, select option "Attach policies directly" , In permission policies, search 'amazons3fullaccess' select it 
 and click next, and create user.
 
 click on that username, in security credentials tab, click on create access key, scroll down and click 'other' and clickon
@@ -517,8 +517,8 @@ create. copy both access key and security key and keep it in a safe place.
 
 user: karthikkollurudev
 
-access key aws : AKIAYQYUBFGEZBQYVAFL
-secret key aws : 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
+access key aws : (present in aws txt file or .env file)
+secret key aws : (present in aws txt file or .env file)
 
 
 
@@ -697,3 +697,181 @@ def auto_delete_file_on_delete(sender, instance, **kwargs):
         instance.images.delete(save = False)
 
 
+
+
+SECTION 6: Authentication
+
+Link for simple jwt:
+https://django-rest-framework-simplejwt.readthedocs.io/en/latest/
+
+pip install djangorestframework-simplejwt
+
+in setting.py, Installed apps = ['rest_framework_simplejwt']
+
+add: 
+* 
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': ( 
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        ),
+}
+
+
+from datetime import timedelta 
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours = 2),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days = 2),
+    "BLACKLIST_AFTER_ROTATION": True,
+    "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.token.AccessToken",),
+    "AUTH_HEADER_TYPES": ('Bearer',),
+}
+
+2. Signup and User serializers:
+
+create new app for user login and account,
+
+E:\djangop\eshop-django\eshop> python manage.py startapp account
+
+open account folder and create serializers.py file,
+note: we are not creating user model we are using default User model imported from django package
+
+In serializers.py file:
+
+from rest_framework import serializers
+from django.contrib.auth.models import User
+
+
+create serializer class for signup
+class SignUpSerializer(models.ModelSerializer):
+    model = User
+    fields = ('first_name', 'last_name', 'email', 'password')
+
+give validations using kwargs for firstname,lastname,email and password:
+
+    extra_kwargs = {
+       'first_name': {'required': True, 'allow_blank': False},
+
+    }
+
+
+create another serializer for user details using the same User model:
+
+class UserSerializer(ModelSerializer):
+    model = User
+    fields = ('first_name', 'last_name', 'email', 'username')
+    
+* In views.py create fucntion for registering user:
+
+#Create your views here.
+@api_view(['POST'])
+def register(request):
+
+    data = request.data
+    user = SignUpSerializer(data = data)
+
+    if user.is_valid():
+        if not User.objects.filter(username = data['email']).exists():
+            user = User.objects.create(
+                <field_name> = data['field_name'],)
+
+            return response(201ok)
+
+        else:
+            return response(400badrequest)
+    else:
+    return response(user.errors)
+
+
+3. Login User:
+
+In eshop/urls.py add:
+
+from rest_framework_simplejwt.views import TokenObtainPairView,TokenRefreshView
+
+
+urlpatterns = [
+    ...
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    ...
+]
+        
+
+runserver and open postman type url domain/api/token, in raw/json give username and password details
+
+you witll get access and refresh tokens, copy aceess token and open jwt.io and paste token in that website.
+you will get token details. save urls for register user and generate token in postman.
+
+
+4. Get Current user:
+
+In views.py import Isauthenticated from rest_famework.permissions
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def currentuser(request):
+
+    current_user = UserSerializer(request.user)  #request.user contains user details present in default usermodel
+    return Response(current_user.data)
+
+In urls.py, add path,   path('me/', views.currentuser, name = 'currentuser'),
+
+copy access token, runserver, open postman, type url and send, it will give unauthorised error
+In Headers, give Authorization: Bearer <access_token> and send, we get user details.
+
+5. Save user while creating product:
+
+In product/views.py add below lines:
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def new_product(request):
+'
+'
+    if serializer.is_valid():
+        new_product = Product.objects.create(**data, user = request.user)
+
+
+for PUT and DELETE fucntions add below lines:
+@permission_classes(['Isauthenticated'])
+def fn_name(req):
+
+    if product.user != request.user:
+        return Response({"error": "You cannot update this product"}, status = 
+                        status.HTTP_403_FORBIDDEN)
+
+6. Update user profile details:
+
+In account/views.py add lines:
+
+
+@api_view(["PUT"])
+@permission_classes([IsAuthenticated])
+def updateuser(request):
+
+    user = request.user
+    data = request.data
+
+    user.first_name = data['first_name']
+    user.last_name = data['last_name']
+    user.username = data['username']
+    user.email = data['email']
+
+    if data['password'] != "" :
+
+        user.password = make_password(data['password'])
+
+    user.save()
+
+    serializer = UserSerializer(user, many = False)
+
+In account/urls.py, add:
+
+urlpatterns = [
+    '
+    '
+    path('me/update/', views.updateuser, name = 'updateuser'),
+]
+
+save, runserver, open postman and test urls.

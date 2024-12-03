@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 
 from pathlib import Path
+from datetime import timedelta
 
 import os
 import dotenv
@@ -51,12 +52,14 @@ THIRDPARTY_APPS = [
     'rest_framework',
     'django_filters',
     'storages',
+    'rest_framework_simplejwt'
 
 ]
 
 LOCAL_APPS = [
 
 'product',
+'account',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRDPARTY_APPS + LOCAL_APPS
@@ -153,7 +156,21 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {
     'EXCEPTION_HANDLER': 'utils.custom_exception_handler.custom_exception_handler',
+    'DEFAULT_AUTHENTICATION_CLASSES': ( 
+        'rest_framework_simplejwt.authentication.JWTAuthentication',# comma is compulsary since it is a tuple otherwise u will get type error
+        ),
 }
+
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours = 2),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days = 2),
+    "BLACKLIST_AFTER_ROTATION": True,
+    "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
+    "AUTH_HEADER_TYPES": ('Bearer',),
+}
+
+
 
 
 STORAGES = {

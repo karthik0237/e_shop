@@ -1,8 +1,10 @@
 from django.shortcuts import render, get_object_or_404
-from rest_framework import status, pagination
 
-from rest_framework.decorators import api_view
+from rest_framework import status, pagination
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+
 
 from .models import Product, ProductImages
 from .serializers import ProductSerializer, ProductImagesSerializer
@@ -48,6 +50,7 @@ def get_product(request, pk):
 
 #create a new product
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def new_product(request):
 
     data = request.data
@@ -55,7 +58,7 @@ def new_product(request):
 #first serialize data and check whether valid or not, then omly create new object
     if serializer.is_valid():
 
-        new_product = Product.objects.create(**data)  # multiple arguments(kwargs) i.e,we get all variables present in data.
+        new_product = Product.objects.create(**data, user = request.user)  # multiple arguments(kwargs) i.e,we get all variables present in data.
         res = ProductSerializer(new_product, many = False)
         return Response({"new_product": res.data})
     else:
@@ -66,10 +69,17 @@ def new_product(request):
 
  # for updationg we use  PUT for entire object modifications, PATCH for only few fields modification
 @api_view(["PUT"])
+@permission_classes([IsAuthenticated])
 def update_product(request,pk):
 
 #name', 'description', 'price', 'brand', 'category', 'ratings', 'stock
     product = get_object_or_404(Product, id = pk)
+
+    if product.user != request.user:
+
+        return Response({"error": "You cannot update this product"}, status = 
+                        status.HTTP_403_FORBIDDEN)
+    
     product.name = request.data['name']
     product.description = request.data['description']
     product.price = request.data['price']
@@ -85,11 +95,16 @@ def update_product(request,pk):
 
 # for deleting product:
 @api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
 def delete_product(request,pk):
 
     product = get_object_or_404(Product, id = pk)
 
-    #check if user is same - todo
+    #check if user is same
+    if product.user != request.user:
+
+        return Response({"error": "You cannot update this product"}, status = 
+                        status.HTTP_403_FORBIDDEN)
 
     #delete images along with product
     args = {"product": pk} #product field in database contains id
@@ -119,7 +134,7 @@ def upload_product_images(request):
     # saving images into database
     images = []
     for f in files:
-        image = ProductImages.objects.create(product = Product(data['product']), image = f)  
+        image = ProductImages.objects.create(product = Product(data['product']), images = f)  
         images.append(image)
 
     serializer = ProductImagesSerializer(images, many = True) #retrieving images from database
