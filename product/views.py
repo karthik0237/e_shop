@@ -1,4 +1,5 @@
 from django.shortcuts import render, get_object_or_404
+from django.db.models import Avg
 
 from rest_framework import status, pagination
 from rest_framework.decorators import api_view, permission_classes
@@ -6,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 
-from .models import Product, ProductImages
+from .models import Product, ProductImages, Review
 from .serializers import ProductSerializer, ProductImagesSerializer
 from .filters import ProductsFilter
 
@@ -140,3 +141,77 @@ def upload_product_images(request):
     serializer = ProductImagesSerializer(images, many = True) #retrieving images from database
 
     return Response({"images": serializer.data})
+
+
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_update_review(request,pk):
+
+    user = request.user
+    product = get_object_or_404(Product, id = pk)
+    data = request.data
+
+    review = product.reviews.filter(user = user) # we get userid from product.reviews
+
+    # check if rating correct or not and update already existed
+    if data['rating'] not in [0,1,2,3,4,5]:
+
+        return Response({"error": "Rating should be between 0-5 numbers only"})
+    
+    elif review.exists():
+
+        new_review = { 'rating': data['rating'], 'comment': data['comment']}
+        review.update(**new_review)   #this is another way of updating data
+        
+        rating = product.reviews.aggregate(avg_ratings = Avg('rating'))
+
+        product.ratings = rating['avg_ratings']
+        product.save()
+
+        return Response({'detail': 'review updated'})
+    
+    else:
+        review = Review.objects.create(
+            user = user,
+            product = product,
+            rating = data['rating'],
+            comment = data['comment']
+        )
+
+        rating = product.reviews.aggregate(avg_ratings = Avg('rating'))
+
+        product.ratings = rating['avg_ratings']
+        product.save()
+
+        return Response({"details": "review posted"})
+    
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_review(request,pk):
+
+    user = request.user
+    product = get_object_or_404(Product, id = pk)
+    
+    review = product.reviews.filter(user = user)
+
+    if review.exists():
+
+        review.delete()
+
+        rating = product.reviews.aggregate(avg_ratings = Avg('rating'))
+        
+        if rating['avg_ratings'] is None:
+            rating['avg_ratings'] = 0
+
+        product.ratings = rating['avg_ratings']
+        product.save()
+
+        return Response({'details': 'review deleted'})
+
+
+    else:
+        return Response({'error': 'review not found'}, status = status.HTTP_404_NOT_FOUND)
+

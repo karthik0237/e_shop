@@ -699,6 +699,8 @@ def auto_delete_file_on_delete(sender, instance, **kwargs):
 
 
 
+
+
 SECTION 6: Authentication
 
 Link for simple jwt:
@@ -875,3 +877,139 @@ urlpatterns = [
 ]
 
 save, runserver, open postman and test urls.
+
+
+
+
+
+
+
+SECTION 7: Review model and manage product reviews
+
+1. In product/models.py create a model class Review()
+create model fields : product(foreignkey Product), user(foriegnkey User), rating(intfield), comment(textfirld)
+with 
+    def __str__(self):
+        self.comment
+
+In product/serializers.py create ReviewSerializer with model = Review and fields = '__all__'
+
+python manage.py makemigrations and migrate
+
+2. In views.py create_or_update function
+
+@api_view(['POST'])
+@permission_classes(IsAuthenticated)
+def create_update_review(request,pk):
+
+    user = request.user
+    product = get_object_or_404(Product, id = pk)
+    data = request.data
+
+    review = product.reviews.filter(user = user)
+
+    # check if rating correct or not 
+    if data['rating'] not in [0,1,2,3,4,5]:
+
+        return Response({"error": "Rating should be between 0-5 numbers only"})
+
+    # update already existed reviews
+    elif review.exists():
+           here create new_review dictionary and add fields of review model(rating, comment) in dict/json format
+           add them to review object using,  
+           
+           review.update(**new_review)
+
+           # rating field of review model conatins individual user rating, but we want average rating of all users for
+           a product. so, we need to make average of alluser ratings we use below lines:
+
+        rating = product.reviews.aggregate(avg_ratings = Avg('rating'))   #'Avg' is imported from django.db.models
+
+        product.ratings = rating['avg_ratings']   # ratings field is present in Product model.
+        product.save()
+
+        return Response({'detail': 'review updated'})
+
+
+    #create new review object if doesnot exist already
+    else:
+        Review.objects.create(
+                        user = user,
+            product = product,
+            rating = data['rating'],
+            comment = data['comment']
+        )
+    
+        # avg rating updatation is compulsory for both create and update reviews
+        rating = product.reviews.aggregate(avg_ratings = Avg('rating'))
+
+        product.ratings = rating['avg_ratings']
+        product.save()
+
+        return Response({"details": "review posted"})
+
+    
+3. adding reviews field to product model using product serializer:
+
+class ProductSerializer(BaseSerializer):
+
+    images = ProductImagesSerializer(many = True, read_only = True)
+    reviews = serializers.SerializerMethodField(method_name = 'get_reviews', read_only = True)
+
+    in class meta, fields list add ['reviews']
+
+    in ProductSerializer class itself create a method with name get_fieldname:
+
+    def get_reviews(self,obj):    # here obj is object that is being serialized
+        reviews = obj.reviews.all()
+        serializer = ReviewSerializer(reviews, many = True)
+        return serializer.data
+
+4. Delete review:
+
+    in views.py ,
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_review(request,pk):
+
+    user = request.user
+    product = get_object_or_404(Product, id = pk)
+    
+    review = product.reviews.filter(user = user)
+
+    # check if review exists then, review.delete() to delete review object of Review model,
+    ratings field of Product should not be null. so, if there are no rating(None), then make it as zero
+
+    rating = product.reviews.aggregate(avg_ratings = Avg('rating'))
+    if rating['avg_ratings'] is None:
+            rating['avg_ratings'] = 0
+
+
+    update product.ratings and save product object
+
+    product.ratings = rating['avg_ratings']
+    product.save()
+
+    else:
+    return error(review not found)
+
+5. Add urls for reviews:
+
+urlpatterns = [
+    path('<str:pk>/reviews/', views.create_update_review, name = 'create_update_review'),
+    path('<str:pk>/reviews/delete/', views.delete_review, name = 'delete_review'),
+]
+
+save all files, make migrations , migrate, runserver, test urls, save urls in postman, update requirements.txt 
+init git and add new branch to github
+
+    
+
+
+
+
+
+
+
+

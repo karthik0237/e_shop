@@ -54,3 +54,16 @@ def auto_delete_file_on_delete(sender, instance, **kwargs):
 
     if instance.images:     #images field verify
         instance.images.delete(save = False)
+
+
+#create reviews model
+class Review(BaseModel):
+
+    product = models.ForeignKey(Product, on_delete = models.CASCADE, null = True, related_name = 'reviews')
+    user = models.ForeignKey(User, on_delete = models.CASCADE, null = True)
+    rating = models.IntegerField(default = 0)
+    comment = models.TextField(default = '', blank = False)
+
+    def __str__(self):
+        return self.comment
+
