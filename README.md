@@ -1009,6 +1009,168 @@ init git and add new branch to github
 
 
 
+SECTION 8 : EMAIL CONFIGURATION
+
+1. gmail configuration:
+ Login to ur gmail, open settings> security> enable 2-factor authentication,
+ In settings, search for App passwords, create a new app with name 'eshop' and a password is created
+
+ copy that password and open .env file, In that file add following environment variables:
+
+ 
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_HOST_USER = 'karthikkolluru123@gmail.com'
+EMAIL_HOST_PASSWORD = **********   #paste App password here
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False
+
+In settings.py file add, all these variables, then add a line:
+
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+
+#shows sent email result on console terminal screen 
+#EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+
+2. Create user profile model:
+
+ * 
+ class Profile(models.Model):
+
+    #one profile for one user
+    user = models.OneToOneField(User, related_name = 'profile', on_delete = models.CASCADE)
+    reset_password_token = models.CharField(max_length = 50, default = '', blank = True)
+    reset_password_expire = models.DateTimeField(null = True, blank = True)
+
+python manage.py make migrations and migrate, table is created in database. At present this table is empty
+We have to write code such that whenever a user us created, a profile should also be created automatically 
+for that User. To perform this task, we use a signal with sender = User model, receiver = save_profile method
+
+In models.py file add :
+
+#whenever a new user is registered/created, this signal automatically recieves
+#that user object and create a profile object  for that user object
+@receiver(post_save, sender = User)
+def save_profile(sender, instance, created, **kwargs):
+
+    user = instance  
+
+    if created:      # created = true if user is created
+        profile = Profile(user = user)
+        profile.save()
+
+
+
+
+3. In views.py, add lines:
+
+from django.utils.crypto import get_random_string
+from datetime import datetime, timedelta
+
+from django.core.mail import send_mail, EmailMessage
+
+from eshop.settings import EMAIL_HOST_USER
+
+
+
+@api_view(['POST'])
+def forgot_password(request):
+
+    #get user object using email address provided in request.data
+    data = request.data
+    user = get_object_or_404(User, email = data['email])
+
+    #create token and token expire 
+     token = get_random_string(40)
+    expire_date = datetime.now() + timedelta(minutes = 10)
+
+    #save them in proile model
+    user.profile.reset_password_token = token #profile is related name for Profile model object in User
+    user.profile.reset_password_expire = expire_date
+
+    user.profile.save()
+
+3. create a function for host:
+
+def get_current_host(request):
+
+    protocol = request.is_secure() and 'https' or 'http'
+    host = request.get_host()
+    return "{protocol}://{host}/".format(protocol = protocol, host = host)  #http://127.0.0:8000/
+
+4. In forgot_password method:
+
+    host = get_current_host(request)
+
+    #create reset link
+    link = "{host}reset_password/{token}".format(host = host, token = token )
+
+    body = "Your password reset link is : {link}".format(link = link)
+
+    send_mail("Password reset for eshop",body,"noreply@eshop.com",
+               recipient_list = ["karthikkolluru123@gmail.com"], fail_silently = True)
+
+    return Response({'details': 'Password reset email sent to: {email}'.format(email = EMAIL_HOST_USER) })
+
+    for this mail sender = karthikkolluru123@gmail.com(email_host_user), email ids of those whom you want to receive this email should be added in recipients_list = []
+
+
+5. reset_password: 
+
+the link received in email will help to reset password for that, we have to create a view that takes password and confirmPassword data from post request, verify them and make new password and saveit in user model, 
+
+* 
+@api_view(['POST'])
+def reset_password(request, token):
+
+    data = request.data
+
+   #profile__(double underscore)_reset_password_tokenis same as  user.profile.reset_password_token
+    user  = get_object_or_404(User, profile__reset_password_token = token) 
+    
+  #tzinfo means timezone info set it to none to avoid any timezone related issues
+  #compare reset_password_expire should be less than current time, that means time is not expired
+    if user.profile.reset_password_expire.replace(tzinfo = None) < datetime.now():
+        return Response({"error": "reset password token expired"})
+    
+    if data['password'] != data['confirmPassword']:
+        return Response({"error": "passwords mismatch"})
+    
+    user.password = make_password(data['password'])
+
+    #clear token and expire values in database 
+    user.profile.reset_password_token = ""
+    user.profile.reset_password_expire = None
+
+    user.profile.save()
+    user.save()
+
+    return Response({"details": "password reset successfully"})
+
+
+6. Add urls for forgot and reset password:
+
+ path('forgot_password/', views.forgot_password, name = 'forgot_password'),
+path('reset_password/<str:token>', views.reset_password, name = 'reset_password'),
+
+we receive this token in reset_password view
+
+save code, runserver, open postman and test urls, we have to pass json data of 'email' for forgot password
+and 'passowrd' and 'confirmPassword' for reset_password.
+
+push code to git hub e_shop creating a branch gmail-config-forgot-reset-password
+
+
+
+
+
+
+    
+
+
+
 
 
 

@@ -20,3 +20,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('first_name', 'last_name', 'email', 'username')
+
+
+# model is same(User) for both Signup and User serializers, but signup used for registeruser and user 
+# is for other read update and delete

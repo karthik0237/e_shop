@@ -195,7 +195,7 @@ def delete_review(request,pk):
     user = request.user
     product = get_object_or_404(Product, id = pk)
     
-    review = product.reviews.filter(user = user)
+    review = product.reviews.filter(user = user) #reviews is related name for Review model object in Product
 
     if review.exists():
 
