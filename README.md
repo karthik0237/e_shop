@@ -1009,7 +1009,7 @@ init git and add new branch to github
 
 
 
-SECTION 8 : EMAIL CONFIGURATION
+SECTION 8 : EMAIL CONFIGURATION, FORGOT AND RESET PASSWORD
 
 1. gmail configuration:
  Login to ur gmail, open settings> security> enable 2-factor authentication,
@@ -1167,10 +1167,247 @@ push code to git hub e_shop creating a branch gmail-config-forgot-reset-password
 
 
 
+SECTION 9: MANAGE ORDERS AND ORDERITEMS:
+
+1. Create order app, Order, OrderItem models:
+
+create app 'order' using 'python manage.py startapp order' and add app name in INSTALLED_APPS
+in settings.py.
+
+In order folder, open models.py and create a class 
+
+class BaseModel with created_at, updated_at, is_active fields, 
+
+class BaseModel(models.Model):
+
+    created_at = models.DateTimeField(auto_now_add = True)
+    updated_at = models.DateTimeField(auto_now = True)
+    is_active = models.BooleanField(default = True)
+
+    class Meta:
+        abstract = True
+
+Now create Order
+
+class Order(BaseModel):
+
+with fields, street, city, state, country, zipcode with 
+models.CharField(max_length = 100, default = '', blank = False)
+
+total_amount = models.DecimalField(max_digits = 7, decimal_places = 2, default = '', blank = False)
+    payment_status = models.CharField(
+        max_length = 20, 
+        choices = PaymentStatus.choices, 
+        default = PaymentStatus.UNPAID
+        )
+    order_status = models.CharField(
+        max_length = 20, 
+        choices = OrderStatus.choices, 
+        default = OrderStatus.PROCESSING
+        )
+    payment_mode = models.CharField(
+        max_length = 20, 
+        choices = PaymentMode.choices,
+        default = PaymentMode.COD
+        )
+    user = models.ForeignKey(User, on_delete = models.SET_NULL, null = True)
+
+
+    def __str__(self):
+        return str(self.id)
+
+
+class OrderItem(BaseModel):
+
+    product = models.ForeignKey(Product, on_delete = models.SET_NULL, null = True)
+    order = models.ForeignKey(Order, on_delete = models.CASCADE, null = True, related_name = 'orderitems')
+    name = models.CharField(max_length = 200, default = '', blank = False)
+    quantity = models.IntegerField(default =1)
+    price = models.DecimalField(max_digits = 7, decimal_places = 2, default = '', blank = False)
+
+    def __str__(self):
+        return self.name
+
+save models.py, make migrtions and migrate
+
+
+#order contains orderitems, so we draw a foreign key relatioship between them. orderitems are added from 
+products. so we have foreign key relation between product and orderitems
+
+
+2. Order serializers:
+
+import models
+
+class OrderItemSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = OrderItem
+        fields = "__all__"
+        fields_read_only = ('id','created_at', 'updated_at')
+
+
+#order contains orderitems, so we draw a foreign key relatioship between them. orderitems are added from 
+products. so we have foreign key relation between product and orderitems
+
+
+class OrderSerializer(serializers.ModelSerializer):
+
+#we can serialize orderitems model fields in this order model serializer and add that field 
+to these fields, to show along with them during API request. so we add orderItems field to Order fields.
+to achieve this we create a method get_order_items in which, obj is Order object that contains orderitems
+as related name foreogn key for order in orderitems.
+
+    orderItems = serializers.SerializerMethodField(method_name = 'get_order_items', read_only = True)
+
+    class Meta:
+        model = Order
+        fields = "__all__"
+        fields_read_only = ('id','created_at', 'updated_at')
+
+    def get_order_items(self, obj):
+
+        order_items = obj.orderitems.all() #orderitems is related name for OrderItems object in Order
+        serializer = OrderItemSerializer(order_items, many = True)
+        return serializer.data
     
 
+3. Create views for new_order,
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def new_order(request):
+
+    user = request.user
+    data = request.data
+
+    order_items = data['orderItems']  #OrderItem model in Order with foreign key reference
+
+    if order_items and len(order_items) == 0: #whether orderitems are empty or not
+        return Response({'error': 'No Order Items. Please add atleast one product'}, status = status.HTTP_400_BAD_REQUEST)
+    
+    else:
+
+        # create order
+        #total amount will be quantity of item * price of item, do this for all orderitems
+        total_amount = sum(item['price'] * item['quantity'] for item in order_items)
+        order = Order.objects.create(
+            user = user,
+            street = data['street'],
+            city = data['city'],
+            state = data['state'],
+            zip_code = data['zip_code'],
+            phone_no = data['phone_no'],
+            country = data['country'],
+            total_amount = total_amount
+        )
+
+        # create order items and set order to order items
+        #add order items from products
+        for i in order_items:
+           product = Product.objects.get(id = i['product'])
+
+           item = OrderItem.objects.create(
+                product = product,
+                order = order,
+                name = product.name,
+                quantity = i['quantity'],
+                price = i['price'],
+           )
+
+        #update product stock
+        product.stock = product.stock - item.quantity
+        product.save()
+    
+        serializer = OrderSerializer(order, many = False)
+
+        return Response(serializer.data)
+        
+
+
+4. get, update and delete orders:
+
+Apply pagination and filters by creating filters.py file same as we did for product app
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_all_orders(request):
+
+    filterset = OrdersFilter(request.GET, queryset = Order.objects.all().order_by('id'))
+    count = filterset.qs.count()
+
+    #pagination
+    resPerPage = 3
+    paginator = PageNumberPagination()
+    paginator.page_size = resPerPage
+    queryset = paginator.paginate_queryset(filterset.qs, request)
+
+    serializer = OrderSerializer(queryset, many = True)
+
+    return Response({
+        "count": count,
+        "resPerPage": resPerPage,
+        "orders": serializer.data})
+
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_single_order(request, pk):
+
+    order = get_object_or_404(Order, id = pk)
+    serializer = OrderSerializer(order, many = False)
+
+    return Response({"order": serializer.data})
+
+
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_order(request, pk):
+
+    user = request.user
+
+    if user.is_staff is True:        #for admin 'is_staff' == True or u can use [IsAdminUser] class
+        order = get_object_or_404(Order, id=pk)
+        order.order_status = request.data['order_status']
+
+        serializer = OrderSerializer(order, many = False)
+
+        return Response({"order": serializer.data})
+    else:
+        return Response({"error": "only admin is allowed to perform this task"}, status = status.HTTP_403_FORBIDDEN)
+
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated, IsAdminUser])
+def delete_order(request, pk):
+
+    order = get_object_or_404(Order, id=pk)
+    order.delete()
+
+    return Response({"details": "order deleted"})
+
+
+
+5. Admin only end point:
+
+A user is said to be admin if 'is_staff'= True in User model, we can use if condition in views fucntion 
+or u can get permission class IsAdminUser in decorator to verify admin user.
+
+save all files, runserver, open postman test urls and save links.
+Initializer git create 'order-orderitems-manage' branch and push it to github repo e_shop.
+
+
+
+
+
+
+
+
+SECTION 10:
 
 
 

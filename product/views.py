@@ -4,7 +4,7 @@ from django.db.models import Avg
 from rest_framework import status, pagination
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 
 
 from .models import Product, ProductImages, Review
@@ -51,7 +51,7 @@ def get_product(request, pk):
 
 #create a new product
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsAdminUser])
 def new_product(request):
 
     data = request.data
@@ -70,7 +70,7 @@ def new_product(request):
 
  # for updationg we use  PUT for entire object modifications, PATCH for only few fields modification
 @api_view(["PUT"])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsAdminUser])
 def update_product(request,pk):
 
 #name', 'description', 'price', 'brand', 'category', 'ratings', 'stock
@@ -96,7 +96,7 @@ def update_product(request,pk):
 
 # for deleting product:
 @api_view(["DELETE"])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsAdminUser])
 def delete_product(request,pk):
 
     product = get_object_or_404(Product, id = pk)
@@ -120,6 +120,7 @@ def delete_product(request,pk):
 
 # upload product images
 @api_view(['POST'])
+@permission_classes([IsAuthenticated, IsAdminUser])
 def upload_product_images(request):
 
     data = request.data

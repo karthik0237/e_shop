@@ -7,8 +7,8 @@ from .models import Product,ProductImages,Review
 class BaseSerializer(serializers.ModelSerializer):
     
     class Meta:
-        fields = ['id', 'created_at', 'updated_at', 'is_active']
-        fields_read_only = ['id', 'created_at', 'updated_at']
+        fields = ('id', 'created_at', 'updated_at', 'is_active')
+        fields_read_only = ('id', 'created_at', 'updated_at')
 
 
 
