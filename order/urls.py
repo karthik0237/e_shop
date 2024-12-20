@@ -11,4 +11,5 @@ urlpatterns = [
     path('orders/<str:pk>/update/', views.update_order, name = 'update_order'),
     path('orders/<str:pk>/delete/', views.delete_order, name = 'delete_order'),
 
+    path('create-checkout-session/', views.create_checkout_session, name = 'create_checkout_session')
 ]

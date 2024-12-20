@@ -46,7 +46,6 @@ def register(request):
 
 
 
-
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def currentuser(request):

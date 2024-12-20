@@ -12,6 +12,10 @@ from .models import *
 from .serializers import OrderSerializer
 from .filters import OrdersFilter
 
+import os
+import stripe
+from account.views import get_current_host
+
 
 # Create your views here.
 
@@ -126,3 +130,56 @@ def delete_order(request, pk):
 
     return Response({"details": "order deleted"})
 
+
+
+
+stripe.api_key = os.getenv("STRIPE_PRIVATE_KEY")
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_checkout_session(request):
+
+    user = request.user
+    data = request.data
+    YOUR_DOMAIN = str(get_current_host(request))
+
+    order_items = data["orderItems"]
+    shipping_details = {
+        'street': data['street'],
+        'city': data['city'],
+        'state': data['state'],
+        'zip_code': data['zip_code'],
+        'phone_no': data['phone_no'],
+        'country': data['country'],
+        'user': user.id
+    }
+
+    checkout_order_items = []
+    for item in order_items:
+
+        checkout_order_items.append({
+            'price_data' : {
+                'currency': 'INR',
+                'product_data': {
+                    'name': item['name'],
+                    'images': [item['image']],   #we have to add 'image' field in orderitems model
+                    'metadata': {'product_id': item['product']}
+                },
+                'unit_amount': item['price'] * 100
+            },
+
+            'quantity': item['quantity']
+        } )
+
+    session = stripe.checkout.Session.create(
+        payment_method_types = ['card'],
+        metadata = shipping_details,
+        line_items = checkout_order_items,
+        customer_email = user.email,
+        mode = 'payment',
+        success_url = YOUR_DOMAIN,
+        cancel_url = YOUR_DOMAIN
+    )
+
+    return Response({'session': session})
