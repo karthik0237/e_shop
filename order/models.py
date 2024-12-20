@@ -72,6 +72,7 @@ class OrderItem(BaseModel):
     name = models.CharField(max_length = 200, default = '', blank = False)
     quantity = models.IntegerField(default =1)
     price = models.DecimalField(max_digits = 7, decimal_places = 2, default = '', blank = False)
+    image = models.CharField(max_length = 500, default = '', blank = False) #adding image aws url
 
     def __str__(self):
         return self.name

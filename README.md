@@ -550,6 +550,13 @@ STORAGES = {
     },
 }
 
+ #static files contain default css files for admin page, if u run admin page appears without styling
+so, run 
+python manage.py collectstatic
+
+to get css styling for adminpage.This command collects all static files to s3 storage
+
+
 AWS_ACCESS_KEY_ID = ''(eshop-django-udemy)
 AWS_SECRET_ACCESS_KEY =''
 AWS_STORAGE_BUCKET_NAME = ''
@@ -1407,8 +1414,103 @@ Initializer git create 'order-orderitems-manage' branch and push it to github re
 
 
 
-SECTION 10:
+SECTION 10: INTEGRATING STRIPE PAYMENTS
+
+1. Open stripe website signup, create account and sign in,
+
+We only use test mode website, on bottom right of the dashboard page, there are two API keys,
+published jey and secret key. Copy both of them and open .env file and create variables:
+STRIPE_PUBLIC_KEY = ''
+STRIPE_PRIVATE_KEY = '' and save it.
+
+open settings.py and call these varibles using os.getenv('').
+
+=> pip install stripe
+
+=> pip list > requirements.txt
 
 
+2. Create view for creating checkout session for orders:
+
+
+In order app, views.py write below code:
+
+import os
+import stripe
+from account.views import get_current_host
+
+
+stripe.api_key = os.getenv("STRIPE_PRIVATE_KEY")
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_checkout_session(request):
+
+    user = request.user
+    data = request.data
+    YOUR_DOMAIN = str(get_current_host(request))
+
+
+    order_items = data["orderItems"]
+    shipping_details = {
+        'street': data['street'],
+        'city': data['city'],
+        'state': data['state'],
+        'zip_code': data['zip_code'],
+        'phone_no': data['phone_no'],
+        'country': data['country'],
+        'user': user.id
+    }
+
+    checkout_order_items = []  #this is a list of order items to be added for checkout
+    for item in order_items:
+
+        checkout_order_items.append({
+            'price_data' : {
+                'currency': 'INR',
+                'product_data': {
+                    'name': item['name'],
+
+#we have to add 'image' field in orderitem model, which stores image url from aws and make migrations
+( image = models.CharField(max_length = 500, default = '', blank = False) #adding image aws url)
+                    'images': [item['image']],
+                    'metadata': {'product_id': item['product']}
+                },
+                'unit_amount': item['price'] * 100
+            },
+
+            'quantity': item['quantity']
+        } )
+
+
+#session object will be the one that is displayed in checkout page. It contains below variable data
+
+    session = stripe.checkout.Session.create(
+        payment_method_types = ['card'],
+        metadata = shipping_details,
+        line_items = checkout_order_items,
+        customer_email = user.email,
+        mode = 'payment',
+        success_url = YOUR_DOMAIN,
+        cancel_url = YOUR_DOMAIN
+    )
+
+    return Response({'session': session})
+
+
+In order.urls.py add path 
+ path('create-checkout-session/', views.create_checkout_session, name = 'create_checkout_session')
+
+save code, runserver,open postman and generate token and use above post reuqest url , 
+in raw data json add, all the fields in shipping_details and checkout_order_items. 
+
+push code to git, add branch stripe-checkoutpage.
+
+Note: We still have to add stripe webhook, webhook endpoint and creating order on payment success. But, we are leaving upto to this.
+
+
+
+
+-----------------------------  COMPLETED  BACKEND FOR THE PROJECT ----------------------------
 
 
